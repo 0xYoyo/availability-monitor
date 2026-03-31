@@ -1,0 +1,86 @@
+# Availability Monitor
+
+An availability monitor for [Metzoke Dragot](https://www.metzoke.co.il/) that watches for matching room availability during Passover and alerts when a suitable 2-night stay opens up.
+
+This repository is being developed in staged increments with TDD and persistent run-to-run documentation so work can continue cleanly across agent sessions.
+
+## Purpose
+
+The target use case is:
+
+- 2 guests
+- 2-night stays
+- flexible dates within a Passover date window
+- a shortlist of preferred room types
+- fast notification when a matching slot becomes available
+
+## Core Documents
+
+- [PRD.md](/Users/yoyopc/repos/availability-monitor/PRD.md): Product and delivery source of truth.
+- [CURRENT_STATE.md](/Users/yoyopc/repos/availability-monitor/CURRENT_STATE.md): Snapshot of what exists now.
+- [CHANGE_LOG.md](/Users/yoyopc/repos/availability-monitor/CHANGE_LOG.md): Reverse-chronological project changes.
+- [HANDOFF.md](/Users/yoyopc/repos/availability-monitor/HANDOFF.md): Fresh-session continuity file for the next agent.
+
+## Current Tooling
+
+- Node.js
+- TypeScript
+- Vitest
+- Playwright
+
+## Available Commands
+
+- `npm test`: run the test suite once
+- `npm run test:watch`: run tests in watch mode
+- `npm run typecheck`: run the TypeScript checker
+- `npm run build`: compile TypeScript into `dist/`
+
+## Current Implemented Slice
+
+- project bootstrap is complete
+- test runner and TypeScript config are in place
+- first core domain logic exists for generating flexible date windows
+- normalized monitoring config parsing exists
+- normalized availability observation/result modeling exists
+- state snapshot and alert-dedupe logic exists
+- checker interface and fake checker adapter exist
+- one polling-cycle orchestrator exists and runs against the normalized contracts
+- first real EZgo direct-HTTP room-page adapter exists
+- unit tests cover the current pure domain behavior and validation rules
+
+## Core Domain Modules
+
+- [dateUtils.ts](/Users/yoyopc/repos/availability-monitor/src/core/dateUtils.ts): shared ISO date helpers
+- [dateWindows.ts](/Users/yoyopc/repos/availability-monitor/src/core/dateWindows.ts): flexible stay-window generation
+- [config.ts](/Users/yoyopc/repos/availability-monitor/src/core/config.ts): config parsing and enrichment
+- [availability.ts](/Users/yoyopc/repos/availability-monitor/src/core/availability.ts): normalized observation types and validation
+- [state.ts](/Users/yoyopc/repos/availability-monitor/src/core/state.ts): state snapshot updates and alert decision logic
+- [checker.ts](/Users/yoyopc/repos/availability-monitor/src/core/checker.ts): checker contract and fake adapter
+- [monitor.ts](/Users/yoyopc/repos/availability-monitor/src/core/monitor.ts): one-cycle monitoring orchestration
+- [ezgoDirect.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/ezgoDirect.ts): direct-HTTP EZgo room-page adapter
+
+## Stage 4 Findings
+
+- Direct HTTP is viable for room-specific EZgo pages that have an `SI` identifier.
+- The EZgo engine accepts `sDate` and `eDate` query params and reflects them in server-rendered HTML.
+- The engine is an ASP.NET WebForms app, so deeper calendar inspection uses `__VIEWSTATE` plus `__EVENTTARGET` postbacks rather than a clean JSON API.
+- For room-specific pages, availability signals can be derived from server-rendered calendar cell titles such as `פנוי`, `מלא`, and `מינימום לילות`.
+- General-page direct-HTTP parsing is not implemented yet and should be treated as `unknown`, not guessed.
+
+## Working Agreement
+
+- Build in small stages.
+- Prefer tests before or alongside implementation.
+- Keep docs updated on every meaningful run.
+- Treat `PRD.md` as the main planning context for a fresh agent.
+- Treat `HANDOFF.md` as the first file to update before ending a session.
+- Never hide uncertainty: if a signal is incomplete or unreliable, return `unknown` or `error` and document the gap.
+
+## Initial Planned Stages
+
+1. Project scaffolding and documentation.
+2. Domain model and date-window generation logic.
+3. Availability checking adapter with a testable interface.
+4. Site integration via browser automation or direct HTTP, depending on findings.
+5. Alerting and state deduplication.
+6. Packaging, runbook, and operational hardening.

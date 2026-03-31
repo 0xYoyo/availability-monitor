@@ -1,0 +1,25 @@
+{
+  "name": "availability-monitor",
+  "version": "1.0.0",
+  "description": "An availability monitor for [Metzoke Dragot](https://www.metzoke.co.il/) that watches for matching room availability during Passover and alerts when a suitable 2-night stay opens up.",
+  "type": "module",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "playwright": "^1.58.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
