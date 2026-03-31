@@ -69,5 +69,5 @@ Notes:
 
 - GitHub Actions scheduled workflows run on the default branch.
 - Scheduled workflows use UTC time.
-- The committed workflow runs every 10 minutes.
+- The committed workflow runs every 10 minutes on off-boundary minutes (`7,17,27,37,47,57`) to reduce the chance of GitHub scheduler delays on common cron boundaries.
 - GitHub Actions is not exactly a full server replacement, but for this project it can act like one by spinning up a temporary runner on a schedule, executing one monitor cycle, and then shutting down again.
