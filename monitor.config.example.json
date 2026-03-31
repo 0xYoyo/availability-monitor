@@ -20,6 +20,7 @@
     "guestCount": 2,
     "pollIntervalMinutes": 10,
     "cooldownMinutes": 60,
+    "alertMode": "all_currently_available",
     "rooms": [
       {
         "id": "reservationtp",

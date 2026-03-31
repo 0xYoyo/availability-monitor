@@ -34,7 +34,7 @@ export function applyObservations(previousState, observations, options) {
             lastAlertedAt: previousRecord?.lastAlertedAt,
             message: observation.message
         };
-        const alertReason = getAlertReason(previousRecord, observation, options.cooldownMinutes);
+        const alertReason = getAlertReason(previousRecord, observation, options.cooldownMinutes, options.alertMode);
         if (alertReason) {
             nextRecord.lastAlertedAt = observation.checkedAt;
             alerts.push({
@@ -53,9 +53,12 @@ export function applyObservations(previousState, observations, options) {
         alerts
     };
 }
-function getAlertReason(previousRecord, observation, cooldownMinutes) {
+function getAlertReason(previousRecord, observation, cooldownMinutes, alertMode) {
     if (observation.status !== "available") {
         return undefined;
+    }
+    if (alertMode === "all_currently_available") {
+        return "currently_available";
     }
     if (!previousRecord || previousRecord.currentStatus !== "available") {
         return "newly_available";

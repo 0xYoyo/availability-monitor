@@ -4,6 +4,7 @@ import {
   type AvailabilityObservation,
   type AvailabilityStatus
 } from "./availability.js";
+import type { AlertMode } from "./config.js";
 
 export interface AvailabilityRecord {
   key: string;
@@ -31,11 +32,12 @@ export interface AvailabilityAlert {
   type: "availability_found";
   key: string;
   record: AvailabilityRecord;
-  reason: "newly_available" | "cooldown_elapsed";
+  reason: "newly_available" | "cooldown_elapsed" | "currently_available";
 }
 
 export interface ApplyObservationsOptions {
   cooldownMinutes: number;
+  alertMode: AlertMode;
 }
 
 export interface ApplyObservationsResult {
@@ -89,7 +91,12 @@ export function applyObservations(
       message: observation.message
     };
 
-    const alertReason = getAlertReason(previousRecord, observation, options.cooldownMinutes);
+    const alertReason = getAlertReason(
+      previousRecord,
+      observation,
+      options.cooldownMinutes,
+      options.alertMode
+    );
 
     if (alertReason) {
       nextRecord.lastAlertedAt = observation.checkedAt;
@@ -115,10 +122,15 @@ export function applyObservations(
 function getAlertReason(
   previousRecord: AvailabilityRecord | undefined,
   observation: AvailabilityObservation,
-  cooldownMinutes: number
+  cooldownMinutes: number,
+  alertMode: AlertMode
 ): AvailabilityAlert["reason"] | undefined {
   if (observation.status !== "available") {
     return undefined;
+  }
+
+  if (alertMode === "all_currently_available") {
+    return "currently_available";
   }
 
   if (!previousRecord || previousRecord.currentStatus !== "available") {

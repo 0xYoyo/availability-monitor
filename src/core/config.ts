@@ -1,5 +1,12 @@
 import { generateDateWindows, type DateWindow } from "./dateWindows.js";
 
+export const ALERT_MODES = [
+  "newly_available",
+  "all_currently_available"
+] as const;
+
+export type AlertMode = (typeof ALERT_MODES)[number];
+
 export interface RoomConfig {
   id: string;
   name: string;
@@ -14,6 +21,7 @@ export interface MonitorConfig {
   guestCount: number;
   pollIntervalMinutes: number;
   cooldownMinutes: number;
+  alertMode: AlertMode;
   rooms: RoomConfig[];
   generalSearchUrl?: string;
 }
@@ -33,6 +41,7 @@ export function parseMonitorConfig(input: unknown): ResolvedMonitorConfig {
   const guestCount = readPositiveInteger(input, "guestCount");
   const pollIntervalMinutes = readPositiveInteger(input, "pollIntervalMinutes");
   const cooldownMinutes = readNonNegativeInteger(input, "cooldownMinutes");
+  const alertMode = readAlertMode(input, "alertMode");
   const generalSearchUrl = readOptionalString(input, "generalSearchUrl");
   const rooms = parseRooms(input.rooms);
   const dateWindows = generateDateWindows(dateRangeStart, dateRangeEnd, nightCount);
@@ -48,6 +57,7 @@ export function parseMonitorConfig(input: unknown): ResolvedMonitorConfig {
     guestCount,
     pollIntervalMinutes,
     cooldownMinutes,
+    alertMode,
     rooms,
     generalSearchUrl,
     dateWindows
@@ -141,6 +151,24 @@ function readNonNegativeInteger(
   }
 
   return value;
+}
+
+function readAlertMode(
+  record: Record<string, unknown>,
+  key: string,
+  path = "config"
+): AlertMode {
+  const value = record[key];
+
+  if (value === undefined) {
+    return "newly_available";
+  }
+
+  if (typeof value !== "string" || !ALERT_MODES.includes(value as AlertMode)) {
+    throw new Error(`${path}.${key} must be one of: ${ALERT_MODES.join(", ")}`);
+  }
+
+  return value as AlertMode;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

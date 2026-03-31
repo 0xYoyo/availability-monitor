@@ -58,7 +58,7 @@ export function formatAvailabilityAlertMessage(
     "Availability found",
     `Room: ${alert.record.roomName}`,
     `Dates: ${alert.record.checkIn} -> ${alert.record.checkOut} (${alert.record.nights} night${alert.record.nights === 1 ? "" : "s"})`,
-    `Reason: ${alert.reason}`,
+    `Reason: ${formatAlertReason(alert.reason)}`,
     `Status: ${alert.record.currentStatus}`,
     `Booking: ${alert.record.bookingUrl}`,
     alert.record.message ? `Signal: ${alert.record.message}` : undefined
@@ -67,8 +67,19 @@ export function formatAvailabilityAlertMessage(
   return lines.join("\n");
 }
 
+function formatAlertReason(reason: AvailabilityAlert["reason"]): string {
+  if (reason === "currently_available") {
+    return "currently available in this run";
+  }
+
+  if (reason === "cooldown_elapsed") {
+    return "cooldown elapsed";
+  }
+
+  return "newly available";
+}
+
 function buildTelegramUrl(options: TelegramNotifierOptions): string {
   const baseUrl = (options.apiBaseUrl ?? "https://api.telegram.org").replace(/\/+$/, "");
   return `${baseUrl}/bot${options.botToken}/sendMessage`;
 }
-

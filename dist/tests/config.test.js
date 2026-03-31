@@ -26,6 +26,7 @@ describe("parseMonitorConfig", () => {
             ]
         });
         expect(config.rooms.map((room) => room.id)).toEqual(["tenti", "mul-yam"]);
+        expect(config.alertMode).toBe("newly_available");
         expect(config.dateWindows).toEqual([
             { checkIn: "2026-04-08", checkOut: "2026-04-10", nights: 2 },
             { checkIn: "2026-04-09", checkOut: "2026-04-11", nights: 2 },
@@ -105,5 +106,25 @@ describe("parseMonitorConfig", () => {
                 }
             ]
         })).toThrow("config.pollIntervalMinutes must be a positive integer");
+    });
+    it("parses the all-currently-available alert mode", () => {
+        const config = parseMonitorConfig({
+            dateRangeStart: "2026-04-08",
+            dateRangeEnd: "2026-04-12",
+            nightCount: 2,
+            guestCount: 2,
+            pollIntervalMinutes: 7,
+            cooldownMinutes: 90,
+            alertMode: "all_currently_available",
+            rooms: [
+                {
+                    id: "mul-yam",
+                    name: "Mul Yam",
+                    bookingUrl: "https://example.com/1",
+                    priority: 1
+                }
+            ]
+        });
+        expect(config.alertMode).toBe("all_currently_available");
     });
 });

@@ -13,6 +13,7 @@ describe("runMonitorCycle", () => {
       guestCount: 2,
       pollIntervalMinutes: 10,
       cooldownMinutes: 60,
+      alertMode: "newly_available",
       rooms: [
         {
           id: "mul-yam",
@@ -67,6 +68,7 @@ describe("runMonitorCycle", () => {
       guestCount: 2,
       pollIntervalMinutes: 10,
       cooldownMinutes: 60,
+      alertMode: "newly_available",
       generalSearchUrl: "https://example.com/general",
       rooms: [
         {
@@ -109,6 +111,7 @@ describe("runMonitorCycle", () => {
       guestCount: 2,
       pollIntervalMinutes: 10,
       cooldownMinutes: 60,
+      alertMode: "newly_available",
       rooms: [
         {
           id: "mul-yam",
@@ -139,5 +142,48 @@ describe("runMonitorCycle", () => {
 
     expect(first.alerts).toHaveLength(1);
     expect(second.alerts).toEqual([]);
+  });
+
+  it("emits all currently available matches every run when configured", async () => {
+    const config = parseMonitorConfig({
+      dateRangeStart: "2026-04-11",
+      dateRangeEnd: "2026-04-13",
+      nightCount: 2,
+      guestCount: 2,
+      pollIntervalMinutes: 10,
+      cooldownMinutes: 60,
+      alertMode: "all_currently_available",
+      rooms: [
+        {
+          id: "mul-yam",
+          name: "Mul Yam",
+          bookingUrl: "https://example.com/mul-yam",
+          priority: 1
+        }
+      ]
+    });
+
+    const checker = new FakeAvailabilityChecker([
+      {
+        roomId: "mul-yam",
+        checkIn: "2026-04-11",
+        checkOut: "2026-04-13",
+        status: "available"
+      }
+    ]);
+
+    const first = await runMonitorCycle(config, checker, {
+      checkedAt: "2026-03-31T12:00:00.000Z"
+    });
+
+    const second = await runMonitorCycle(config, checker, {
+      checkedAt: "2026-03-31T12:20:00.000Z",
+      previousState: first.nextState
+    });
+
+    expect(first.alerts).toHaveLength(1);
+    expect(first.alerts[0]?.reason).toBe("currently_available");
+    expect(second.alerts).toHaveLength(1);
+    expect(second.alerts[0]?.reason).toBe("currently_available");
   });
 });

@@ -3,7 +3,8 @@ export async function runMonitorCycle(config, checker, options) {
     const observations = await collectObservations(config, checker, options.checkedAt);
     const previousState = options.previousState ?? createEmptyState();
     const stateResult = applyObservations(previousState, observations, {
-        cooldownMinutes: config.cooldownMinutes
+        cooldownMinutes: config.cooldownMinutes,
+        alertMode: config.alertMode
     });
     return {
         observations,

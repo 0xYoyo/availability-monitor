@@ -18,7 +18,8 @@ describe("applyObservations", () => {
 
   it("alerts when a room-window combination becomes available for the first time", () => {
     const result = applyObservations(createEmptyState(), [baseObservation], {
-      cooldownMinutes: 60
+      cooldownMinutes: 60,
+      alertMode: "newly_available"
     });
 
     expect(result.alerts).toHaveLength(1);
@@ -30,13 +31,14 @@ describe("applyObservations", () => {
 
   it("does not re-alert unchanged availability inside the cooldown window", () => {
     const first = applyObservations(createEmptyState(), [baseObservation], {
-      cooldownMinutes: 60
+      cooldownMinutes: 60,
+      alertMode: "newly_available"
     });
 
     const second = applyObservations(
       first.nextState,
       [{ ...baseObservation, checkedAt: "2026-03-31T12:30:00.000Z" }],
-      { cooldownMinutes: 60 }
+      { cooldownMinutes: 60, alertMode: "newly_available" }
     );
 
     expect(second.alerts).toEqual([]);
@@ -47,13 +49,14 @@ describe("applyObservations", () => {
 
   it("re-alerts after cooldown elapses while availability is unchanged", () => {
     const first = applyObservations(createEmptyState(), [baseObservation], {
-      cooldownMinutes: 60
+      cooldownMinutes: 60,
+      alertMode: "newly_available"
     });
 
     const second = applyObservations(
       first.nextState,
       [{ ...baseObservation, checkedAt: "2026-03-31T13:15:00.000Z" }],
-      { cooldownMinutes: 60 }
+      { cooldownMinutes: 60, alertMode: "newly_available" }
     );
 
     expect(second.alerts).toHaveLength(1);
@@ -67,13 +70,13 @@ describe("applyObservations", () => {
     const first = applyObservations(
       createEmptyState(),
       [{ ...baseObservation, status: "unavailable" }],
-      { cooldownMinutes: 60 }
+      { cooldownMinutes: 60, alertMode: "newly_available" }
     );
 
     const second = applyObservations(
       first.nextState,
       [{ ...baseObservation, checkedAt: "2026-03-31T12:20:00.000Z" }],
-      { cooldownMinutes: 60 }
+      { cooldownMinutes: 60, alertMode: "newly_available" }
     );
 
     expect(second.alerts).toHaveLength(1);
@@ -84,7 +87,7 @@ describe("applyObservations", () => {
     const result = applyObservations(
       createEmptyState(),
       [{ ...baseObservation, status: "minimum_stay_blocked" }],
-      { cooldownMinutes: 60 }
+      { cooldownMinutes: 60, alertMode: "newly_available" }
     );
 
     const record = result.nextState.records["mul-yam::2026-04-11::2026-04-13"];
@@ -93,5 +96,23 @@ describe("applyObservations", () => {
     expect(record?.currentStatus).toBe("minimum_stay_blocked");
     expect(record?.lastChangedAt).toBe("2026-03-31T12:00:00.000Z");
     expect(record?.lastAvailableAt).toBeUndefined();
+  });
+
+  it("alerts on every run when configured to report all current availability", () => {
+    const first = applyObservations(createEmptyState(), [baseObservation], {
+      cooldownMinutes: 60,
+      alertMode: "all_currently_available"
+    });
+
+    const second = applyObservations(
+      first.nextState,
+      [{ ...baseObservation, checkedAt: "2026-03-31T12:30:00.000Z" }],
+      { cooldownMinutes: 60, alertMode: "all_currently_available" }
+    );
+
+    expect(first.alerts).toHaveLength(1);
+    expect(first.alerts[0]?.reason).toBe("currently_available");
+    expect(second.alerts).toHaveLength(1);
+    expect(second.alerts[0]?.reason).toBe("currently_available");
   });
 });
