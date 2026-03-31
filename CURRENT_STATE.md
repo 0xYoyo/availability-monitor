@@ -97,6 +97,9 @@
 - [reservationtMUL](https://www.metzoke.co.il/reservationtMUL)
 - [reservationmy](https://www.metzoke.co.il/reservationmy)
 - [reservationtS](https://www.metzoke.co.il/reservationtS)
+- [reservationtpPART](https://www.metzoke.co.il/reservationtpPART)
+- [reservationt](https://www.metzoke.co.il/reservationt)
+- [reservationtNP](https://www.metzoke.co.il/reservationtNP)
 
 ## Decisions Made
 

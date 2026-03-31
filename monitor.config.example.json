@@ -51,6 +51,24 @@
         "name": "Tenti S",
         "bookingUrl": "https://www.metzoke.co.il/reservationtS",
         "priority": 5
+      },
+      {
+        "id": "reservationtppart",
+        "name": "Tenti P Partial",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtpPART",
+        "priority": 6
+      },
+      {
+        "id": "reservationt",
+        "name": "Tenti",
+        "bookingUrl": "https://www.metzoke.co.il/reservationt",
+        "priority": 7
+      },
+      {
+        "id": "reservationtnp",
+        "name": "Tenti N Partial View",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtNP",
+        "priority": 8
       }
     ]
   }

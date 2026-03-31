@@ -85,6 +85,9 @@ The currently requested room-specific marketing pages to monitor are:
 - [reservationtMUL](https://www.metzoke.co.il/reservationtMUL)
 - [reservationmy](https://www.metzoke.co.il/reservationmy)
 - [reservationtS](https://www.metzoke.co.il/reservationtS)
+- [reservationtpPART](https://www.metzoke.co.il/reservationtpPART)
+- [reservationt](https://www.metzoke.co.il/reservationt)
+- [reservationtNP](https://www.metzoke.co.il/reservationtNP)
 
 The project should prefer these room-specific pages as the primary monitoring path. The general engine page remains optional and is not required for a useful first delivery if the room-specific checks prove reliable enough.
 
