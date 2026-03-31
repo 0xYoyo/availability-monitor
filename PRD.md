@@ -51,14 +51,17 @@ Preferred initial approach:
 
 - Runtime: Node.js
 - Language: TypeScript
-- Browser automation: Playwright
+- Primary site integration: direct HTTP for room-specific EZgo pages when reliable
+- Fallback site integration: Playwright for unsupported flows
 - Tests: Vitest
 - State storage: JSON first, SQLite only if needed
 - Notifications: Telegram first
 
 Reasoning:
 
-- Playwright is a better fit than static scraping when the booking flow involves interactive date controls and dynamic rendering.
+- Direct HTTP is preferable when the server-rendered EZgo response exposes enough signal to classify room-specific availability reliably.
+- The room-specific EZgo direct-HTTP path has now been live-validated against the production site and should be treated as the primary path for initial delivery.
+- Playwright remains a fallback for unsupported or degraded flows, rather than a co-equal primary implementation target.
 - The site integration should be isolated behind an adapter so the project can later switch to direct HTTP/API calls if the underlying booking engine exposes a stable availability endpoint.
 
 ## 9. Product Behavior
@@ -72,6 +75,18 @@ Reasoning:
 - Preferred room definitions
 - Poll interval
 - Notification settings
+
+### Current Target Room Pages
+
+The currently requested room-specific marketing pages to monitor are:
+
+- [reservationtp](https://www.metzoke.co.il/reservationtp)
+- [reservationtN](https://www.metzoke.co.il/reservationtN)
+- [reservationtMUL](https://www.metzoke.co.il/reservationtMUL)
+- [reservationmy](https://www.metzoke.co.il/reservationmy)
+- [reservationtS](https://www.metzoke.co.il/reservationtS)
+
+The project should prefer these room-specific pages as the primary monitoring path. The general engine page remains optional and is not required for a useful first delivery if the room-specific checks prove reliable enough.
 
 ### Derived Search Windows
 
@@ -229,7 +244,7 @@ Goal:
 Tasks:
 
 - inspect room-specific and general booking flows
-- implement Playwright adapter first
+- implement a first real adapter behind the checker contract
 - evaluate whether direct HTTP is possible
 - capture stable selectors or request patterns
 
@@ -237,6 +252,7 @@ Acceptance criteria:
 
 - manual test confirms real result extraction works for at least one room and one date window
 - failure handling captures enough debug context
+- the preferred room-specific path is reliable enough to use as the primary monitoring route
 
 ### Stage 5: Notifications and persistence
 
@@ -254,6 +270,7 @@ Acceptance criteria:
 
 - repeated unchanged matches do not re-alert
 - newly available matches send a clear actionable alert
+- the runtime can deliver alerts through a configured notifier, not just compute them in memory
 
 ### Stage 6: Operational hardening
 
@@ -272,6 +289,16 @@ Acceptance criteria:
 
 - the tool can run locally in a repeatable way
 - recovery steps are documented
+
+## 12.1 Stage Status Notes
+
+Current interpretation after live validation:
+
+- Stages 0 through 3 are complete.
+- Stage 4 is effectively complete for the accepted primary path: room-specific EZgo direct HTTP.
+- General-page support is optional and should not block initial delivery if room-specific monitoring remains reliable.
+- Playwright should be treated as fallback support for HTTP `error` and `unknown` cases unless live operation proves otherwise.
+- Stage 5 begins once notifier delivery is wired onto the validated room-specific runtime path.
 
 ## 13. Proposed Initial Repo Layout
 

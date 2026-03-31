@@ -1,3 +1,10 @@
+const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 500;
+const DEFAULT_HEADERS = {
+    "user-agent": "availability-monitor/1.0 (+https://www.metzoke.co.il/ room availability check)",
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+};
 const MONTH_NAME_TO_NUMBER = {
     ינואר: 1,
     פברואר: 2,
@@ -26,8 +33,15 @@ const MONTH_NAME_TO_NUMBER = {
 };
 export class EzgoDirectChecker {
     fetchImpl;
-    constructor(fetchImpl = fetch) {
+    engineUrlCache = new Map();
+    timeoutMs;
+    maxRetries;
+    retryDelayMs;
+    constructor(fetchImpl = fetch, options = {}) {
         this.fetchImpl = fetchImpl;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+        this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
     }
     async checkAvailability(request) {
         try {
@@ -45,11 +59,11 @@ export class EzgoDirectChecker {
                     message: "Direct HTTP general-page parsing is not implemented yet; room-specific SI pages are the supported Stage 4 path."
                 };
             }
-            const engineUrl = await resolveEngineUrl(this.fetchImpl, request.room.bookingUrl);
+            const engineUrl = await this.resolveEngineUrl(request.room.bookingUrl);
             const seededUrl = buildSeededUrl(engineUrl, request.dateWindow.checkIn, request.dateWindow.checkOut);
-            let state = await fetchHtmlState(this.fetchImpl, seededUrl);
-            state = await ensureCalendarMonth(this.fetchImpl, state, "start", request.dateWindow.checkIn);
-            state = await ensureCalendarMonth(this.fetchImpl, state, "end", request.dateWindow.checkOut);
+            let state = await fetchHtmlState(this.fetchPage.bind(this), seededUrl);
+            state = await ensureCalendarMonth(this.fetchPage.bind(this), state, "start", request.dateWindow.checkIn);
+            state = await ensureCalendarMonth(this.fetchPage.bind(this), state, "end", request.dateWindow.checkOut);
             const startStatus = parseSelectedDayTitle(state.html, "start", request.dateWindow.checkIn);
             const endStatus = parseSelectedDayTitle(state.html, "end", request.dateWindow.checkOut);
             const status = classifyAvailability(startStatus, endStatus);
@@ -81,6 +95,25 @@ export class EzgoDirectChecker {
                 message
             };
         }
+    }
+    resolveEngineUrl(bookingUrl) {
+        const cached = this.engineUrlCache.get(bookingUrl);
+        if (cached) {
+            return cached;
+        }
+        const resolved = resolveEngineUrl(this.fetchPage.bind(this), bookingUrl);
+        this.engineUrlCache.set(bookingUrl, resolved);
+        resolved.catch(() => {
+            this.engineUrlCache.delete(bookingUrl);
+        });
+        return resolved;
+    }
+    async fetchPage(input, init) {
+        return fetchWithRetry(this.fetchImpl, input, init, {
+            timeoutMs: this.timeoutMs,
+            maxRetries: this.maxRetries,
+            retryDelayMs: this.retryDelayMs
+        });
     }
 }
 export function buildSeededUrl(engineUrl, checkIn, checkOut) {
@@ -199,7 +232,9 @@ async function postBack(fetchImpl, state, eventTarget) {
     const response = await fetchImpl(state.pageUrl, {
         method: "POST",
         headers: {
-            "content-type": "application/x-www-form-urlencoded"
+            ...DEFAULT_HEADERS,
+            "content-type": "application/x-www-form-urlencoded",
+            referer: state.pageUrl
         },
         body
     });
@@ -213,6 +248,74 @@ async function postBack(fetchImpl, state, eventTarget) {
         viewState: extractInputValue(html, "__VIEWSTATE"),
         viewStateGenerator: extractInputValue(html, "__VIEWSTATEGENERATOR")
     };
+}
+async function fetchWithRetry(fetchImpl, input, init, options) {
+    let lastError;
+    for (let attempt = 0; attempt <= options.maxRetries; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+        try {
+            const headers = new Headers({
+                ...DEFAULT_HEADERS,
+                ...toHeaderRecord(init?.headers)
+            });
+            const response = await fetchImpl(input, {
+                ...init,
+                headers,
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+            if (shouldRetryResponse(response.status) && attempt < options.maxRetries) {
+                await delay(options.retryDelayMs * (attempt + 1));
+                continue;
+            }
+            return response;
+        }
+        catch (error) {
+            clearTimeout(timeout);
+            lastError = error;
+            if (attempt >= options.maxRetries || !isRetryableError(error)) {
+                throw toFetchError(error);
+            }
+            await delay(options.retryDelayMs * (attempt + 1));
+        }
+    }
+    throw toFetchError(lastError);
+}
+function shouldRetryResponse(status) {
+    return status === 408 || status === 429 || status >= 500;
+}
+function isRetryableError(error) {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+    return error.name === "AbortError" || /fetch failed/i.test(error.message);
+}
+function toFetchError(error) {
+    if (error instanceof Error && error.name === "AbortError") {
+        return new Error("fetch timed out");
+    }
+    if (error instanceof Error) {
+        return new Error(error.message);
+    }
+    return new Error(String(error));
+}
+function toHeaderRecord(headers) {
+    if (!headers) {
+        return {};
+    }
+    if (headers instanceof Headers) {
+        return Object.fromEntries(headers.entries());
+    }
+    if (Array.isArray(headers)) {
+        return Object.fromEntries(headers);
+    }
+    return headers;
+}
+function delay(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
 }
 function extractInputValue(html, id) {
     const escapedId = escapeRegExp(id);

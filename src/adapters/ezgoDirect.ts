@@ -2,6 +2,18 @@ import type { AvailabilityObservation } from "../core/availability.js";
 import type { AvailabilityChecker, CheckRequest } from "../core/checker.js";
 
 type FetchLike = typeof fetch;
+type FetchRequestInit = Parameters<FetchLike>[1];
+type HeaderRecord = Record<string, string | undefined>;
+type HeaderInitLike = Headers | string[][] | HeaderRecord;
+
+const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 500;
+const DEFAULT_HEADERS = {
+  "user-agent":
+    "availability-monitor/1.0 (+https://www.metzoke.co.il/ room availability check)",
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+} as const;
 
 const MONTH_NAME_TO_NUMBER: Record<string, number> = {
   ינואר: 1,
@@ -48,8 +60,26 @@ interface CalendarCell {
   isCurrentMonth: boolean;
 }
 
+export interface EzgoDirectCheckerOptions {
+  timeoutMs?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
+}
+
 export class EzgoDirectChecker implements AvailabilityChecker {
-  constructor(private readonly fetchImpl: FetchLike = fetch) {}
+  private readonly engineUrlCache = new Map<string, Promise<string>>();
+  private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
+
+  constructor(
+    private readonly fetchImpl: FetchLike = fetch,
+    options: EzgoDirectCheckerOptions = {}
+  ) {
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+  }
 
   async checkAvailability(request: CheckRequest): Promise<AvailabilityObservation> {
     try {
@@ -69,24 +99,24 @@ export class EzgoDirectChecker implements AvailabilityChecker {
         };
       }
 
-      const engineUrl = await resolveEngineUrl(this.fetchImpl, request.room.bookingUrl);
+      const engineUrl = await this.resolveEngineUrl(request.room.bookingUrl);
       const seededUrl = buildSeededUrl(
         engineUrl,
         request.dateWindow.checkIn,
         request.dateWindow.checkOut
       );
 
-      let state = await fetchHtmlState(this.fetchImpl, seededUrl);
+      let state = await fetchHtmlState(this.fetchPage.bind(this), seededUrl);
 
       state = await ensureCalendarMonth(
-        this.fetchImpl,
+        this.fetchPage.bind(this),
         state,
         "start",
         request.dateWindow.checkIn
       );
 
       state = await ensureCalendarMonth(
-        this.fetchImpl,
+        this.fetchPage.bind(this),
         state,
         "end",
         request.dateWindow.checkOut
@@ -124,6 +154,31 @@ export class EzgoDirectChecker implements AvailabilityChecker {
         message
       };
     }
+  }
+
+  private resolveEngineUrl(bookingUrl: string): Promise<string> {
+    const cached = this.engineUrlCache.get(bookingUrl);
+
+    if (cached) {
+      return cached;
+    }
+
+    const resolved = resolveEngineUrl(this.fetchPage.bind(this), bookingUrl);
+    this.engineUrlCache.set(bookingUrl, resolved);
+
+    resolved.catch(() => {
+      this.engineUrlCache.delete(bookingUrl);
+    });
+
+    return resolved;
+  }
+
+  private async fetchPage(input: string | URL, init?: FetchRequestInit): Promise<Response> {
+    return fetchWithRetry(this.fetchImpl, input, init, {
+      timeoutMs: this.timeoutMs,
+      maxRetries: this.maxRetries,
+      retryDelayMs: this.retryDelayMs
+    });
   }
 }
 
@@ -218,7 +273,10 @@ export function extractEmbeddedEngineUrl(marketingHtml: string): string | undefi
   return iframeMatch?.[1].replaceAll("&amp;", "&");
 }
 
-async function resolveEngineUrl(fetchImpl: FetchLike, bookingUrl: string): Promise<string> {
+async function resolveEngineUrl(
+  fetchImpl: (input: string | URL, init?: FetchRequestInit) => Promise<Response>,
+  bookingUrl: string
+): Promise<string> {
   if (bookingUrl.includes("engine.ezgo.co.il")) {
     return bookingUrl;
   }
@@ -239,7 +297,10 @@ async function resolveEngineUrl(fetchImpl: FetchLike, bookingUrl: string): Promi
   return embeddedUrl;
 }
 
-async function fetchHtmlState(fetchImpl: FetchLike, url: string): Promise<EzgoHtmlState> {
+async function fetchHtmlState(
+  fetchImpl: (input: string | URL, init?: FetchRequestInit) => Promise<Response>,
+  url: string
+): Promise<EzgoHtmlState> {
   const response = await fetchImpl(url);
 
   if (!response.ok) {
@@ -257,7 +318,7 @@ async function fetchHtmlState(fetchImpl: FetchLike, url: string): Promise<EzgoHt
 }
 
 async function ensureCalendarMonth(
-  fetchImpl: FetchLike,
+  fetchImpl: (input: string | URL, init?: FetchRequestInit) => Promise<Response>,
   initialState: EzgoHtmlState,
   calendarType: "start" | "end",
   isoDate: string
@@ -294,7 +355,7 @@ async function ensureCalendarMonth(
 }
 
 async function postBack(
-  fetchImpl: FetchLike,
+  fetchImpl: (input: string | URL, init?: FetchRequestInit) => Promise<Response>,
   state: EzgoHtmlState,
   eventTarget: string
 ): Promise<EzgoHtmlState> {
@@ -311,7 +372,9 @@ async function postBack(
   const response = await fetchImpl(state.pageUrl, {
     method: "POST",
     headers: {
-      "content-type": "application/x-www-form-urlencoded"
+      ...DEFAULT_HEADERS,
+      "content-type": "application/x-www-form-urlencoded",
+      referer: state.pageUrl
     },
     body
   });
@@ -328,6 +391,99 @@ async function postBack(
     viewState: extractInputValue(html, "__VIEWSTATE"),
     viewStateGenerator: extractInputValue(html, "__VIEWSTATEGENERATOR")
   };
+}
+
+async function fetchWithRetry(
+  fetchImpl: FetchLike,
+  input: string | URL,
+  init: FetchRequestInit | undefined,
+  options: Required<EzgoDirectCheckerOptions>
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= options.maxRetries; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+
+    try {
+      const headers = new Headers({
+        ...DEFAULT_HEADERS,
+        ...toHeaderRecord(init?.headers)
+      });
+
+      const response = await fetchImpl(input, {
+        ...init,
+        headers,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (shouldRetryResponse(response.status) && attempt < options.maxRetries) {
+        await delay(options.retryDelayMs * (attempt + 1));
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error;
+
+      if (attempt >= options.maxRetries || !isRetryableError(error)) {
+        throw toFetchError(error);
+      }
+
+      await delay(options.retryDelayMs * (attempt + 1));
+    }
+  }
+
+  throw toFetchError(lastError);
+}
+
+function shouldRetryResponse(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.name === "AbortError" || /fetch failed/i.test(error.message);
+}
+
+function toFetchError(error: unknown): Error {
+  if (error instanceof Error && error.name === "AbortError") {
+    return new Error("fetch timed out");
+  }
+
+  if (error instanceof Error) {
+    return new Error(error.message);
+  }
+
+  return new Error(String(error));
+}
+
+function toHeaderRecord(headers: HeaderInitLike | undefined): HeaderRecord {
+  if (!headers) {
+    return {};
+  }
+
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+
+  return headers;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function extractInputValue(html: string, id: string): string | undefined {

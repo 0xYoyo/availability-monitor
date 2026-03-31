@@ -10,7 +10,11 @@
 - Stage 2 pure domain modeling is in place.
 - Stage 3 checker and orchestration scaffolding is in place.
 - Stage 4 real adapter work is in place for direct-HTTP room-page checks.
-- The project is runnable for tests, typechecking, and build.
+- The room-specific direct-HTTP path has now been live-verified against the actual site and matched manual validation.
+- Stage 5 notifier work has started with a notifier contract and Telegram delivery adapter.
+- Telegram notification delivery has now been validated end-to-end through the runtime using a real bot and private chat.
+- A one-shot runtime path now exists for loading config, selecting a checker, running one cycle, and persisting JSON state.
+- The project is runnable for tests, typechecking, build, and one-shot monitor execution.
 
 ## What Exists
 
@@ -18,6 +22,11 @@
 - [PRD.md](/Users/yoyopc/repos/availability-monitor/PRD.md)
 - [CHANGE_LOG.md](/Users/yoyopc/repos/availability-monitor/CHANGE_LOG.md)
 - [HANDOFF.md](/Users/yoyopc/repos/availability-monitor/HANDOFF.md)
+- [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json)
+- [RUNBOOK.md](/Users/yoyopc/repos/availability-monitor/docs/RUNBOOK.md)
+- [github-actions-workflow.example.yml](/Users/yoyopc/repos/availability-monitor/docs/github-actions-workflow.example.yml)
+- [.env.example](/Users/yoyopc/repos/availability-monitor/.env.example)
+- `.gitignore`
 - `package.json`
 - `package-lock.json`
 - `tsconfig.json`
@@ -37,12 +46,21 @@
 - [checker.ts](/Users/yoyopc/repos/availability-monitor/src/core/checker.ts)
 - [monitor.ts](/Users/yoyopc/repos/availability-monitor/src/core/monitor.ts)
 - [ezgoDirect.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/ezgoDirect.ts)
+- [telegramNotifier.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/telegramNotifier.ts)
+- [notifier.ts](/Users/yoyopc/repos/availability-monitor/src/core/notifier.ts)
+- [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts)
+- [stateStore.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/stateStore.ts)
+- [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts)
+- [monitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/cli/monitorOnce.ts)
 - [config.test.ts](/Users/yoyopc/repos/availability-monitor/tests/config.test.ts)
 - [availability.test.ts](/Users/yoyopc/repos/availability-monitor/tests/availability.test.ts)
 - [state.test.ts](/Users/yoyopc/repos/availability-monitor/tests/state.test.ts)
 - [checker.test.ts](/Users/yoyopc/repos/availability-monitor/tests/checker.test.ts)
 - [monitor.test.ts](/Users/yoyopc/repos/availability-monitor/tests/monitor.test.ts)
 - [ezgoDirect.test.ts](/Users/yoyopc/repos/availability-monitor/tests/ezgoDirect.test.ts)
+- [telegramNotifier.test.ts](/Users/yoyopc/repos/availability-monitor/tests/telegramNotifier.test.ts)
+- [runtimeConfig.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runtimeConfig.test.ts)
+- [runMonitorOnce.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runMonitorOnce.test.ts)
 
 ## Confirmed Product Direction
 
@@ -57,8 +75,26 @@
 - A fake checker adapter now supports application-layer testing without external site access.
 - One monitor cycle can now collect observations and apply them into state plus alerts.
 - A real direct-HTTP adapter now exists for room-specific EZgo pages.
+- Runtime config can now choose between the fake checker and the real EZgo direct checker.
+- Runtime config can now also choose between `noop` delivery and Telegram delivery.
+- Telegram notifier credentials can now be supplied through environment-variable references instead of being hardcoded into config files.
+- The one-shot runtime now auto-loads `.env` files before resolving notifier environment-variable references.
+- Runtime monitor config now supports rolling date expressions such as `today`, `tomorrow`, and `today+N`.
+- The EZgo direct checker now supports timeout, retry, and retry-delay settings plus cached embedded engine URL resolution.
+- A one-shot runner can now load config from disk, reuse persisted JSON state, and save the next state after each cycle.
+- The one-shot runner can now also deliver computed alerts through a notifier.
+- The Telegram notifier path has now been exercised successfully in a real end-to-end run.
 - Direct HTTP was verified to work by seeding `sDate` and `eDate` in the engine URL and, when needed, using ASP.NET postbacks to advance calendar months.
+- The specific room-link HTTP path was also verified end-to-end by running the program itself against live Passover 1-night checks and manually confirming the returned dates.
 - The current real adapter intentionally treats general-page checks as `unknown` because that signal has not been proven reliable enough yet.
+
+## Current Target Room Pages
+
+- [reservationtp](https://www.metzoke.co.il/reservationtp)
+- [reservationtN](https://www.metzoke.co.il/reservationtN)
+- [reservationtMUL](https://www.metzoke.co.il/reservationtMUL)
+- [reservationmy](https://www.metzoke.co.il/reservationmy)
+- [reservationtS](https://www.metzoke.co.il/reservationtS)
 
 ## Decisions Made
 
@@ -72,17 +108,16 @@
 
 ## Outstanding Work
 
-- Decide exact monitored room pages and final date range.
-- Move from fake adapter to a real site integration adapter.
-- Decide whether the next real integration step should deepen the direct-HTTP path further or add a Playwright fallback for unsupported flows.
 - Keep the domain and orchestration layers independent from Playwright or HTTP details.
-- Wire the new real adapter into the orchestration path with runtime config.
+- Polish alert message content and decide whether any additional notification channels are needed beyond Telegram-first delivery.
+- Decide whether fallback behavior should be a targeted Playwright path only for HTTP `error` and `unknown` results, rather than a co-equal primary path.
+- Record the resolved room-specific EZgo `SI` identifiers in runtime-facing docs or config comments.
+- Decide whether to keep external scheduling as the only supported operational mode for now, or also add an internal polling loop later.
+- Decide whether to keep the committed GitHub Actions workflow as the default deployment path for no-laptop operation.
 
 ## Known Unknowns
 
-- Whether the booking engine can be checked more reliably via direct HTTP than browser automation.
-- Which room pages are highest priority.
+- Whether the general search page can be decoded cleanly over direct HTTP or should use Playwright first.
 - Final notification channel preferences.
 - Whether state should eventually expire stale records that disappear from subsequent runs.
 - How general-page hits should map back to preferred room identities once the real site is integrated.
-- Whether the general search page can be decoded cleanly over direct HTTP or should use Playwright first.

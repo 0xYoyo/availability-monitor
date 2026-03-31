@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildSeededUrl, classifyAvailability, extractEmbeddedEngineUrl, parseCalendarMonth, parseSelectedDayTitle } from "../src/adapters/ezgoDirect.js";
+import { describe, expect, it, vi } from "vitest";
+import { EzgoDirectChecker, buildSeededUrl, classifyAvailability, extractEmbeddedEngineUrl, parseCalendarMonth, parseSelectedDayTitle } from "../src/adapters/ezgoDirect.js";
 describe("ezgo direct helpers", () => {
     it("extracts the embedded engine iframe url from a marketing page", () => {
         expect(extractEmbeddedEngineUrl(`
@@ -61,5 +61,118 @@ describe("ezgo direct helpers", () => {
     });
     it("returns unknown when the signal is incomplete", () => {
         expect(classifyAvailability(undefined, "ת. התחלה")).toBe("unknown");
+    });
+});
+describe("EzgoDirectChecker", () => {
+    it("retries transient fetch failures and eventually returns an observation", async () => {
+        const marketingHtml = `
+      <html>
+        <body>
+          <iframe src="https://engine.ezgo.co.il/Main/Engine?iItemId=11403&amp;SI=11385"></iframe>
+        </body>
+      </html>
+    `;
+        const engineHtml = `
+      <input id="__VIEWSTATE" value="state" />
+      <input id="__VIEWSTATEGENERATOR" value="gen" />
+      <span id="lblCalStartMonth_Top">אפריל</span>
+      <span id="lblCalStartYear_Top">2026</span>
+      <span id="lblCalCheckOutMonth_Top">אפריל</span>
+      <span id="lblCalCheckOutYear_Top">2026</span>
+      <table id="CalStart_Top">
+        <tr><td title="פנוי"><span class="date curr-date">11</span></td></tr>
+      </table>
+      <table id="CalChekOut_Top">
+        <tr><td title="פנוי"><span class="date curr-date">12</span></td></tr>
+      </table>
+    `;
+        const fetchImpl = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("fetch failed"))
+            .mockResolvedValueOnce(new Response(marketingHtml, { status: 200 }))
+            .mockResolvedValueOnce(new Response(engineHtml, { status: 200 }));
+        const checker = new EzgoDirectChecker(fetchImpl, {
+            maxRetries: 1,
+            retryDelayMs: 0
+        });
+        const observation = await checker.checkAvailability({
+            room: {
+                id: "mul-yam",
+                name: "Mul Yam",
+                bookingUrl: "https://example.com/mul-yam",
+                priority: 1
+            },
+            dateWindow: {
+                checkIn: "2026-04-11",
+                checkOut: "2026-04-12",
+                nights: 1
+            },
+            guestCount: 2,
+            checkedAt: "2026-03-31T12:00:00.000Z",
+            source: "room_page"
+        });
+        expect(observation.status).toBe("available");
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+    });
+    it("caches resolved engine urls for repeated checks on the same room", async () => {
+        const marketingHtml = `
+      <html>
+        <body>
+          <iframe src="https://engine.ezgo.co.il/Main/Engine?iItemId=11403&amp;SI=11385"></iframe>
+        </body>
+      </html>
+    `;
+        const engineHtml = `
+      <input id="__VIEWSTATE" value="state" />
+      <input id="__VIEWSTATEGENERATOR" value="gen" />
+      <span id="lblCalStartMonth_Top">אפריל</span>
+      <span id="lblCalStartYear_Top">2026</span>
+      <span id="lblCalCheckOutMonth_Top">אפריל</span>
+      <span id="lblCalCheckOutYear_Top">2026</span>
+      <table id="CalStart_Top">
+        <tr><td title="פנוי"><span class="date curr-date">11</span></td></tr>
+      </table>
+      <table id="CalChekOut_Top">
+        <tr><td title="פנוי"><span class="date curr-date">12</span></td></tr>
+      </table>
+    `;
+        const fetchImpl = vi
+            .fn()
+            .mockResolvedValueOnce(new Response(marketingHtml, { status: 200 }))
+            .mockResolvedValueOnce(new Response(engineHtml, { status: 200 }))
+            .mockResolvedValueOnce(new Response(engineHtml, { status: 200 }));
+        const checker = new EzgoDirectChecker(fetchImpl, {
+            maxRetries: 0
+        });
+        const room = {
+            id: "mul-yam",
+            name: "Mul Yam",
+            bookingUrl: "https://example.com/mul-yam",
+            priority: 1
+        };
+        await checker.checkAvailability({
+            room,
+            dateWindow: {
+                checkIn: "2026-04-11",
+                checkOut: "2026-04-12",
+                nights: 1
+            },
+            guestCount: 2,
+            checkedAt: "2026-03-31T12:00:00.000Z",
+            source: "room_page"
+        });
+        await checker.checkAvailability({
+            room,
+            dateWindow: {
+                checkIn: "2026-04-12",
+                checkOut: "2026-04-13",
+                nights: 1
+            },
+            guestCount: 2,
+            checkedAt: "2026-03-31T12:05:00.000Z",
+            source: "room_page"
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://example.com/mul-yam");
     });
 });

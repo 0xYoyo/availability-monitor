@@ -1,0 +1,56 @@
+{
+  "stateFilePath": "./data/state.json",
+  "checker": {
+    "kind": "ezgo_direct",
+    "timeoutMs": 15000,
+    "maxRetries": 2,
+    "retryDelayMs": 250
+  },
+  "notifier": {
+    "kind": "telegram",
+    "botTokenEnv": "TELEGRAM_BOT_TOKEN",
+    "chatIdEnv": "TELEGRAM_CHAT_ID",
+    "messagePrefix": "Metzoke Availability",
+    "silent": false
+  },
+  "monitor": {
+    "dateRangeStart": "tomorrow",
+    "dateRangeEnd": "2026-04-13",
+    "nightCount": 2,
+    "guestCount": 2,
+    "pollIntervalMinutes": 10,
+    "cooldownMinutes": 60,
+    "rooms": [
+      {
+        "id": "reservationtp",
+        "name": "Tenti P",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtp",
+        "priority": 1
+      },
+      {
+        "id": "reservationtn",
+        "name": "Tenti N",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtN",
+        "priority": 2
+      },
+      {
+        "id": "reservationtmul",
+        "name": "Mul Yam",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtMUL",
+        "priority": 3
+      },
+      {
+        "id": "reservationmy",
+        "name": "My Room",
+        "bookingUrl": "https://www.metzoke.co.il/reservationmy",
+        "priority": 4
+      },
+      {
+        "id": "reservationts",
+        "name": "Tenti S",
+        "bookingUrl": "https://www.metzoke.co.il/reservationtS",
+        "priority": 5
+      }
+    ]
+  }
+}

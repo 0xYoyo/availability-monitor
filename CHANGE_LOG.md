@@ -2,6 +2,28 @@
 
 ## 2026-03-31
 
+- Added a notifier contract in [notifier.ts](/Users/yoyopc/repos/availability-monitor/src/core/notifier.ts) plus a first real Telegram delivery adapter in [telegramNotifier.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/telegramNotifier.ts).
+- Extended [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts) and [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts) so one-shot runs can deliver alerts through configured notifier backends.
+- Extended [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts) so Telegram secrets can be loaded from environment variables such as `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+- Added automatic `.env` loading in [env.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/env.ts), plus [.env.example](/Users/yoyopc/repos/availability-monitor/.env.example), [RUNBOOK.md](/Users/yoyopc/repos/availability-monitor/docs/RUNBOOK.md), and [github-actions-workflow.example.yml](/Users/yoyopc/repos/availability-monitor/docs/github-actions-workflow.example.yml).
+- Added rolling runtime date expressions in [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts), updated [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json) to use `tomorrow`, and added a committed GitHub Actions workflow at [.github/workflows/availability-monitor.yml](/Users/yoyopc/repos/availability-monitor/.github/workflows/availability-monitor.yml).
+- Verified a real end-to-end Telegram delivery through the program's own runtime path using a live bot token and private chat.
+- Added Telegram notifier coverage in [telegramNotifier.test.ts](/Users/yoyopc/repos/availability-monitor/tests/telegramNotifier.test.ts) and expanded runtime integration coverage in [runMonitorOnce.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runMonitorOnce.test.ts).
+- Updated the planning docs to reflect that Stage 4 is effectively complete for the accepted room-specific HTTP path and that Stage 5 has started with notifier delivery work.
+- Verified the repo passes `npm test` and `npm run typecheck` after the notifier slice.
+- Live-verified the room-specific EZgo HTTP path by running the program itself against current 1-night Passover checks for all five target room links, then manually confirming that the returned availability dates were correct.
+- Hardened [ezgoDirect.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/ezgoDirect.ts) with request timeout, retry handling, and embedded-engine-URL caching to reduce transient multi-room scan failures.
+- Extended EZgo runtime config support in [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts) and [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts) to accept timeout and retry settings.
+- Added hardening coverage in [ezgoDirect.test.ts](/Users/yoyopc/repos/availability-monitor/tests/ezgoDirect.test.ts) and expanded runtime-config validation in [runtimeConfig.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runtimeConfig.test.ts).
+- Verified the repo passes `npm test`, `npm run typecheck`, and `npm run build` after the EZgo hardening slice.
+- Added runtime config parsing in [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts) so a file can choose between the fake checker and the real `ezgo_direct` checker.
+- Added JSON-backed state loading and saving in [stateStore.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/stateStore.ts).
+- Added one-shot runtime execution in [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts) and a CLI wrapper in [monitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/cli/monitorOnce.ts).
+- Added runtime coverage in [runtimeConfig.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runtimeConfig.test.ts) and [runMonitorOnce.test.ts](/Users/yoyopc/repos/availability-monitor/tests/runMonitorOnce.test.ts).
+- Added [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json), a `monitor:once` package script, and a root `.gitignore`.
+- Verified the repo passes `npm test`, `npm run typecheck`, and `npm run build` after the runtime wiring slice.
+- Added the actual current target room pages to [PRD.md](/Users/yoyopc/repos/availability-monitor/PRD.md), [README.md](/Users/yoyopc/repos/availability-monitor/README.md), [CURRENT_STATE.md](/Users/yoyopc/repos/availability-monitor/CURRENT_STATE.md), and [HANDOFF.md](/Users/yoyopc/repos/availability-monitor/HANDOFF.md).
+- Updated the continuity docs to reflect that room-specific pages are the primary monitoring path and that the handoff file is intended to be sufficient for a fresh session.
 - Added the first real site adapter in [ezgoDirect.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/ezgoDirect.ts) for direct-HTTP room-page checks against EZgo.
 - Added Stage 4 parser and classification coverage in [ezgoDirect.test.ts](/Users/yoyopc/repos/availability-monitor/tests/ezgoDirect.test.ts).
 - Verified through live external inspection that EZgo room pages accept `sDate` and `eDate`, expose server-rendered calendar availability titles, and support ASP.NET postbacks for month navigation.
