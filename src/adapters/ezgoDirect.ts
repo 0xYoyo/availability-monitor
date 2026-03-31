@@ -1,5 +1,6 @@
 import type { AvailabilityObservation } from "../core/availability.js";
 import type { AvailabilityChecker, CheckRequest } from "../core/checker.js";
+import { addDays, formatIsoDate, parseIsoDate } from "../core/dateUtils.js";
 
 type FetchLike = typeof fetch;
 type FetchRequestInit = Parameters<FetchLike>[1];
@@ -108,12 +109,24 @@ export class EzgoDirectChecker implements AvailabilityChecker {
 
       let state = await fetchHtmlState(this.fetchPage.bind(this), seededUrl);
 
-      state = await ensureCalendarMonth(
-        this.fetchPage.bind(this),
-        state,
-        "start",
-        request.dateWindow.checkIn
-      );
+      const occupiedNightTitles: Array<{ date: string; title: string | undefined }> = [];
+
+      for (const occupiedDate of enumerateOccupiedDates(
+        request.dateWindow.checkIn,
+        request.dateWindow.checkOut
+      )) {
+        state = await ensureCalendarMonth(
+          this.fetchPage.bind(this),
+          state,
+          "start",
+          occupiedDate
+        );
+
+        occupiedNightTitles.push({
+          date: occupiedDate,
+          title: parseSelectedDayTitle(state.html, "start", occupiedDate)
+        });
+      }
 
       state = await ensureCalendarMonth(
         this.fetchPage.bind(this),
@@ -122,9 +135,11 @@ export class EzgoDirectChecker implements AvailabilityChecker {
         request.dateWindow.checkOut
       );
 
-      const startStatus = parseSelectedDayTitle(state.html, "start", request.dateWindow.checkIn);
       const endStatus = parseSelectedDayTitle(state.html, "end", request.dateWindow.checkOut);
-      const status = classifyAvailability(startStatus, endStatus);
+      const status = classifyStayAvailability(
+        occupiedNightTitles.map((entry) => entry.title),
+        endStatus
+      );
 
       return {
         roomId: request.room.id,
@@ -136,7 +151,7 @@ export class EzgoDirectChecker implements AvailabilityChecker {
         checkedAt: request.checkedAt,
         bookingUrl: seededUrl,
         source: request.source,
-        message: buildStatusMessage(startStatus, endStatus)
+        message: buildStatusMessage(occupiedNightTitles, endStatus)
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -195,23 +210,36 @@ export function classifyAvailability(
   startTitle: string | undefined,
   endTitle: string | undefined
 ): AvailabilityObservation["status"] {
-  if (!startTitle) {
+  return classifyStayAvailability([startTitle], endTitle);
+}
+
+export function classifyStayAvailability(
+  occupiedNightTitles: Array<string | undefined>,
+  checkoutTitle: string | undefined
+): AvailabilityObservation["status"] {
+  if (occupiedNightTitles.length === 0) {
     return "unknown";
   }
 
-  if (isBlockedTitle(startTitle)) {
-    return mapBlockedTitleToStatus(startTitle);
+  for (const title of occupiedNightTitles) {
+    if (!title) {
+      return "unknown";
+    }
+
+    if (isBlockedTitle(title)) {
+      return mapBlockedTitleToStatus(title);
+    }
+
+    if (normalizeTitle(title) !== "פנוי") {
+      return "unknown";
+    }
   }
 
-  if (normalizeTitle(startTitle) !== "פנוי") {
-    return "unknown";
+  if (isBlockedTitle(checkoutTitle)) {
+    return mapBlockedTitleToStatus(checkoutTitle ?? "");
   }
 
-  if (isBlockedTitle(endTitle)) {
-    return mapBlockedTitleToStatus(endTitle ?? "");
-  }
-
-  if (normalizeTitle(endTitle) === "פנוי") {
+  if (normalizeTitle(checkoutTitle) === "פנוי") {
     return "available";
   }
 
@@ -552,10 +580,27 @@ function normalizeTitle(title: string | undefined): string {
 }
 
 function buildStatusMessage(
-  startTitle: string | undefined,
-  endTitle: string | undefined
+  occupiedNightTitles: Array<{ date: string; title: string | undefined }>,
+  checkoutTitle: string | undefined
 ): string {
-  return `start=${startTitle ?? "missing"}; end=${endTitle ?? "missing"}`;
+  const occupiedSummary = occupiedNightTitles
+    .map((entry) => `${entry.date}=${entry.title ?? "missing"}`)
+    .join(", ");
+
+  return `occupied=${occupiedSummary}; checkout=${checkoutTitle ?? "missing"}`;
+}
+
+function enumerateOccupiedDates(checkIn: string, checkOut: string): string[] {
+  const occupiedDates: string[] = [];
+  let current = parseIsoDate(checkIn);
+  const checkoutDate = parseIsoDate(checkOut);
+
+  while (current.getTime() < checkoutDate.getTime()) {
+    occupiedDates.push(formatIsoDate(current));
+    current = addDays(current, 1);
+  }
+
+  return occupiedDates;
 }
 
 function escapeRegExp(value: string): string {

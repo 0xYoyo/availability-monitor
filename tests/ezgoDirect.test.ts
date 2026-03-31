@@ -4,6 +4,7 @@ import {
   EzgoDirectChecker,
   buildSeededUrl,
   classifyAvailability,
+  classifyStayAvailability,
   extractEmbeddedEngineUrl,
   parseCalendarMonth,
   parseSelectedDayTitle
@@ -112,6 +113,10 @@ describe("ezgo direct helpers", () => {
 
   it("returns unknown when the signal is incomplete", () => {
     expect(classifyAvailability(undefined, "ת. התחלה")).toBe("unknown");
+  });
+
+  it("requires every occupied night to be free for multi-night availability", () => {
+    expect(classifyStayAvailability(["פנוי", "מלא"], "פנוי")).toBe("unavailable");
   });
 });
 
@@ -237,5 +242,62 @@ describe("EzgoDirectChecker", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://example.com/mul-yam");
+  });
+
+  it("does not produce a false positive when a middle night is blocked", async () => {
+    const marketingHtml = `
+      <html>
+        <body>
+          <iframe src="https://engine.ezgo.co.il/Main/Engine?iItemId=11403&amp;SI=11386"></iframe>
+        </body>
+      </html>
+    `;
+    const engineHtml = `
+      <input id="__VIEWSTATE" value="state" />
+      <input id="__VIEWSTATEGENERATOR" value="gen" />
+      <span id="lblCalStartMonth_Top">אפריל</span>
+      <span id="lblCalStartYear_Top">2026</span>
+      <span id="lblCalCheckOutMonth_Top">אפריל</span>
+      <span id="lblCalCheckOutYear_Top">2026</span>
+      <table id="CalStart_Top">
+        <tr>
+          <td title="פנוי"><span class="date curr-date">1</span></td>
+          <td title="מלא"><span class="date curr-date">2</span></td>
+        </tr>
+      </table>
+      <table id="CalChekOut_Top">
+        <tr><td title="פנוי"><span class="date curr-date">3</span></td></tr>
+      </table>
+    `;
+
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(marketingHtml, { status: 200 }))
+      .mockResolvedValueOnce(new Response(engineHtml, { status: 200 }));
+
+    const checker = new EzgoDirectChecker(fetchImpl, {
+      maxRetries: 0
+    });
+
+    const observation = await checker.checkAvailability({
+      room: {
+        id: "reservationtn",
+        name: "Tenti N",
+        bookingUrl: "https://example.com/reservationtN",
+        priority: 1
+      },
+      dateWindow: {
+        checkIn: "2026-04-01",
+        checkOut: "2026-04-03",
+        nights: 2
+      },
+      guestCount: 2,
+      checkedAt: "2026-03-31T12:00:00.000Z",
+      source: "room_page"
+    });
+
+    expect(observation.status).toBe("unavailable");
+    expect(observation.message).toContain("2026-04-01=פנוי");
+    expect(observation.message).toContain("2026-04-02=מלא");
   });
 });

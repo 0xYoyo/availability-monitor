@@ -26,6 +26,8 @@ Continue building the Metzoke availability monitor in small tested stages. The k
 - Telegram notifier secrets can now be supplied via environment-variable references in runtime config.
 - The runtime now auto-loads `.env` and `.env.local`, and the repo includes a runbook plus a GitHub Actions workflow template for a free no-laptop scheduling path.
 - Runtime config now supports rolling date expressions like `tomorrow`, which is useful for “start checking from the next day onward” behavior.
+- A false positive in multi-night classification was found through GitHub Actions validation and fixed by requiring every occupied night in the stay window to be individually available.
+- GitHub Actions scheduling is now working as a free no-laptop execution path, but state persistence between runs remains to be solved.
 - A real end-to-end Telegram delivery test has now succeeded through the program's own runtime path.
 - A one-shot runtime flow now exists in [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts), [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts), and [monitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/cli/monitorOnce.ts).
 - A starter real-run config now exists in [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json).

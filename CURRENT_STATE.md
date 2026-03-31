@@ -11,6 +11,7 @@
 - Stage 3 checker and orchestration scaffolding is in place.
 - Stage 4 real adapter work is in place for direct-HTTP room-page checks.
 - The room-specific direct-HTTP path has now been live-verified against the actual site and matched manual validation.
+- The direct-HTTP classifier has been corrected for multi-night stays so it checks every occupied night instead of only the boundary dates.
 - Stage 5 notifier work has started with a notifier contract and Telegram delivery adapter.
 - Telegram notification delivery has now been validated end-to-end through the runtime using a real bot and private chat.
 - A one-shot runtime path now exists for loading config, selecting a checker, running one cycle, and persisting JSON state.
@@ -84,6 +85,7 @@
 - A one-shot runner can now load config from disk, reuse persisted JSON state, and save the next state after each cycle.
 - The one-shot runner can now also deliver computed alerts through a notifier.
 - The Telegram notifier path has now been exercised successfully in a real end-to-end run.
+- GitHub Actions hosted execution has now been exercised successfully, but scheduled runs still do not persist state across runs yet.
 - Direct HTTP was verified to work by seeding `sDate` and `eDate` in the engine URL and, when needed, using ASP.NET postbacks to advance calendar months.
 - The specific room-link HTTP path was also verified end-to-end by running the program itself against live Passover 1-night checks and manually confirming the returned dates.
 - The current real adapter intentionally treats general-page checks as `unknown` because that signal has not been proven reliable enough yet.
@@ -114,6 +116,7 @@
 - Record the resolved room-specific EZgo `SI` identifiers in runtime-facing docs or config comments.
 - Decide whether to keep external scheduling as the only supported operational mode for now, or also add an internal polling loop later.
 - Decide whether to keep the committed GitHub Actions workflow as the default deployment path for no-laptop operation.
+- Add a viable persistent-state strategy for GitHub Actions so dedupe survives across scheduled runs.
 
 ## Known Unknowns
 

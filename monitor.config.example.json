@@ -15,7 +15,7 @@
   },
   "monitor": {
     "dateRangeStart": "tomorrow",
-    "dateRangeEnd": "2026-04-13",
+    "dateRangeEnd": "2026-04-14",
     "nightCount": 2,
     "guestCount": 2,
     "pollIntervalMinutes": 10,

@@ -1,3 +1,4 @@
+import { addDays, formatIsoDate, parseIsoDate } from "../core/dateUtils.js";
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 500;
@@ -62,11 +63,17 @@ export class EzgoDirectChecker {
             const engineUrl = await this.resolveEngineUrl(request.room.bookingUrl);
             const seededUrl = buildSeededUrl(engineUrl, request.dateWindow.checkIn, request.dateWindow.checkOut);
             let state = await fetchHtmlState(this.fetchPage.bind(this), seededUrl);
-            state = await ensureCalendarMonth(this.fetchPage.bind(this), state, "start", request.dateWindow.checkIn);
+            const occupiedNightTitles = [];
+            for (const occupiedDate of enumerateOccupiedDates(request.dateWindow.checkIn, request.dateWindow.checkOut)) {
+                state = await ensureCalendarMonth(this.fetchPage.bind(this), state, "start", occupiedDate);
+                occupiedNightTitles.push({
+                    date: occupiedDate,
+                    title: parseSelectedDayTitle(state.html, "start", occupiedDate)
+                });
+            }
             state = await ensureCalendarMonth(this.fetchPage.bind(this), state, "end", request.dateWindow.checkOut);
-            const startStatus = parseSelectedDayTitle(state.html, "start", request.dateWindow.checkIn);
             const endStatus = parseSelectedDayTitle(state.html, "end", request.dateWindow.checkOut);
-            const status = classifyAvailability(startStatus, endStatus);
+            const status = classifyStayAvailability(occupiedNightTitles.map((entry) => entry.title), endStatus);
             return {
                 roomId: request.room.id,
                 roomName: request.room.name,
@@ -77,7 +84,7 @@ export class EzgoDirectChecker {
                 checkedAt: request.checkedAt,
                 bookingUrl: seededUrl,
                 source: request.source,
-                message: buildStatusMessage(startStatus, endStatus)
+                message: buildStatusMessage(occupiedNightTitles, endStatus)
             };
         }
         catch (error) {
@@ -123,19 +130,27 @@ export function buildSeededUrl(engineUrl, checkIn, checkOut) {
     return url.toString();
 }
 export function classifyAvailability(startTitle, endTitle) {
-    if (!startTitle) {
+    return classifyStayAvailability([startTitle], endTitle);
+}
+export function classifyStayAvailability(occupiedNightTitles, checkoutTitle) {
+    if (occupiedNightTitles.length === 0) {
         return "unknown";
     }
-    if (isBlockedTitle(startTitle)) {
-        return mapBlockedTitleToStatus(startTitle);
+    for (const title of occupiedNightTitles) {
+        if (!title) {
+            return "unknown";
+        }
+        if (isBlockedTitle(title)) {
+            return mapBlockedTitleToStatus(title);
+        }
+        if (normalizeTitle(title) !== "פנוי") {
+            return "unknown";
+        }
     }
-    if (normalizeTitle(startTitle) !== "פנוי") {
-        return "unknown";
+    if (isBlockedTitle(checkoutTitle)) {
+        return mapBlockedTitleToStatus(checkoutTitle ?? "");
     }
-    if (isBlockedTitle(endTitle)) {
-        return mapBlockedTitleToStatus(endTitle ?? "");
-    }
-    if (normalizeTitle(endTitle) === "פנוי") {
+    if (normalizeTitle(checkoutTitle) === "פנוי") {
         return "available";
     }
     return "unknown";
@@ -363,8 +378,21 @@ function mapBlockedTitleToStatus(title) {
 function normalizeTitle(title) {
     return (title ?? "").trim();
 }
-function buildStatusMessage(startTitle, endTitle) {
-    return `start=${startTitle ?? "missing"}; end=${endTitle ?? "missing"}`;
+function buildStatusMessage(occupiedNightTitles, checkoutTitle) {
+    const occupiedSummary = occupiedNightTitles
+        .map((entry) => `${entry.date}=${entry.title ?? "missing"}`)
+        .join(", ");
+    return `occupied=${occupiedSummary}; checkout=${checkoutTitle ?? "missing"}`;
+}
+function enumerateOccupiedDates(checkIn, checkOut) {
+    const occupiedDates = [];
+    let current = parseIsoDate(checkIn);
+    const checkoutDate = parseIsoDate(checkOut);
+    while (current.getTime() < checkoutDate.getTime()) {
+        occupiedDates.push(formatIsoDate(current));
+        current = addDays(current, 1);
+    }
+    return occupiedDates;
 }
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

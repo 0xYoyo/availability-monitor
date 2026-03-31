@@ -88,6 +88,7 @@ The target use case is:
 
 - Direct HTTP is viable for room-specific EZgo pages that have an `SI` identifier.
 - The specific room-link HTTP path was live-verified from the program itself and matched manual human verification for current 1-night Passover checks.
+- Multi-night stay classification now validates every occupied night in the requested stay window, not just the boundary dates.
 - The EZgo engine accepts `sDate` and `eDate` query params and reflects them in server-rendered HTML.
 - The engine is an ASP.NET WebForms app, so deeper calendar inspection uses `__VIEWSTATE` plus `__EVENTTARGET` postbacks rather than a clean JSON API.
 - For room-specific pages, availability signals can be derived from server-rendered calendar cell titles such as `פנוי`, `מלא`, and `מינימום לילות`.
@@ -100,6 +101,7 @@ The target use case is:
 - Stage 5 has started: the codebase now has notifier delivery wiring, with Telegram as the first real channel.
 - Telegram delivery has now been validated end-to-end through the program's own runtime flow.
 - General-page support and Playwright fallback are still optional follow-on work, not blockers for initial delivery.
+- GitHub Actions hosted execution now works, but cross-run state persistence is still an open operational gap for dedupe between scheduled runs.
 
 ## Current Target Room Pages
 
