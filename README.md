@@ -1,109 +1,138 @@
 # Availability Monitor
 
-An availability monitor for [Metzoke Dragot](https://www.metzoke.co.il/) that watches for matching room availability during Passover and alerts when a suitable 2-night stay opens up.
+A focused availability monitor for [Metzoke Dragot](https://www.metzoke.co.il/) that checks room-specific booking pages and sends Telegram alerts for matching stay windows.
 
-This repository is being developed in staged increments with TDD and persistent run-to-run documentation so work can continue cleanly across agent sessions.
+This project is currently optimized for one property and a curated list of Metzoke Dragot room pages. It is not yet a broad booking-engine monitor for the wider hotel network.
 
-## Purpose
+## What It Does
 
-The target use case is:
+- checks a configured list of Metzoke Dragot room pages
+- supports flexible date windows inside a configured range
+- supports configurable stay length, guest count, and polling interval
+- sends Telegram notifications for matching availability
+- can run locally or on GitHub Actions
 
-- 2 guests
-- 2-night stays
-- flexible dates within a Passover date window
-- a shortlist of preferred room types
-- fast notification when a matching slot becomes available
+## Current Scope
 
-## Core Documents
+Implemented and working today:
 
-- [PRD.md](/Users/yoyopc/repos/availability-monitor/PRD.md): Product and delivery source of truth.
-- [CURRENT_STATE.md](/Users/yoyopc/repos/availability-monitor/CURRENT_STATE.md): Snapshot of what exists now.
-- [CHANGE_LOG.md](/Users/yoyopc/repos/availability-monitor/CHANGE_LOG.md): Reverse-chronological project changes.
-- [HANDOFF.md](/Users/yoyopc/repos/availability-monitor/HANDOFF.md): Fresh-session continuity file for the next agent.
-- [RUNBOOK.md](/Users/yoyopc/repos/availability-monitor/docs/RUNBOOK.md): Local run, `.env`, and hosted scheduling notes.
+- room-specific EZgo direct-HTTP checks for Metzoke Dragot
+- 1-night and multi-night stay validation
+- Telegram alert delivery
+- local `.env` setup
+- GitHub Actions scheduled runs
 
-## Current Tooling
+Not implemented as a primary path:
 
-- Node.js
-- TypeScript
-- Vitest
-- Playwright
+- broad general-engine monitoring across the hotel network
+- generalized multi-property support
+- Playwright fallback as a default monitoring path
 
-## Available Commands
+## Requirements
 
-- `npm test`: run the test suite once
-- `npm run test:watch`: run tests in watch mode
-- `npm run typecheck`: run the TypeScript checker
-- `npm run build`: compile TypeScript into `dist/`
-- `npm run monitor:once -- --config ./monitor.config.example.json`: build and run one monitoring cycle
+- Node.js 22 or newer recommended
+- npm
+- a Telegram bot token
+- a Telegram chat ID
 
-## Current Implemented Slice
+## Quick Start
 
-- project bootstrap is complete
-- test runner and TypeScript config are in place
-- first core domain logic exists for generating flexible date windows
-- normalized monitoring config parsing exists
-- normalized availability observation/result modeling exists
-- state snapshot and alert-dedupe logic exists
-- checker interface and fake checker adapter exist
-- one polling-cycle orchestrator exists and runs against the normalized contracts
-- first real EZgo direct-HTTP room-page adapter exists
-- the room-specific EZgo HTTP path has now been manually validated against live Passover 1-night checks
-- the EZgo checker now includes retry, timeout, and embedded-engine-URL caching to reduce transient live-site failures
-- runtime config parsing and JSON state persistence exist for one-shot execution
-- a compiled CLI entrypoint can now run one monitor cycle against either the fake checker or the real EZgo checker
-- a notifier interface now exists, with Telegram as the first real delivery adapter
-- unit tests cover the current pure domain behavior and validation rules
+1. Clone the repository.
+2. Install dependencies:
 
-## Core Domain Modules
+```bash
+npm install
+```
 
-- [dateUtils.ts](/Users/yoyopc/repos/availability-monitor/src/core/dateUtils.ts): shared ISO date helpers
-- [dateWindows.ts](/Users/yoyopc/repos/availability-monitor/src/core/dateWindows.ts): flexible stay-window generation
-- [config.ts](/Users/yoyopc/repos/availability-monitor/src/core/config.ts): config parsing and enrichment
-- [availability.ts](/Users/yoyopc/repos/availability-monitor/src/core/availability.ts): normalized observation types and validation
-- [state.ts](/Users/yoyopc/repos/availability-monitor/src/core/state.ts): state snapshot updates and alert decision logic
-- [checker.ts](/Users/yoyopc/repos/availability-monitor/src/core/checker.ts): checker contract and fake adapter
-- [monitor.ts](/Users/yoyopc/repos/availability-monitor/src/core/monitor.ts): one-cycle monitoring orchestration
-- [ezgoDirect.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/ezgoDirect.ts): direct-HTTP EZgo room-page adapter
-- [telegramNotifier.ts](/Users/yoyopc/repos/availability-monitor/src/adapters/telegramNotifier.ts): Telegram alert delivery
-- [runtimeConfig.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runtimeConfig.ts): runtime file parsing and checker selection
-- [runMonitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/runMonitorOnce.ts): one-shot runtime flow
-- [stateStore.ts](/Users/yoyopc/repos/availability-monitor/src/runtime/stateStore.ts): JSON-backed state loading and persistence
-- [monitorOnce.ts](/Users/yoyopc/repos/availability-monitor/src/cli/monitorOnce.ts): CLI wrapper around the one-shot runner
-- [notifier.ts](/Users/yoyopc/repos/availability-monitor/src/core/notifier.ts): notifier contract and no-op notifier
+3. Copy [.env.example](/Users/yoyopc/repos/availability-monitor/.env.example) to `.env`.
+4. Put your Telegram credentials into `.env`:
 
-## Runtime Config
+```env
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_CHAT_ID=your-chat-id
+```
 
-- Use [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json) as the starting point for a real run.
-- `checker.kind` currently supports `fake` and `ezgo_direct`.
-- `ezgo_direct` also supports optional `timeoutMs`, `maxRetries`, and `retryDelayMs` runtime settings.
-- `notifier.kind` currently supports `noop` and `telegram`.
-- Telegram secrets can be provided directly or via `botTokenEnv` and `chatIdEnv` environment-variable references.
-- The one-shot runtime now auto-loads `.env` and `.env.local` from the project/config directory before parsing notifier env references.
-- Rolling monitor dates such as `tomorrow` and `today+3` are now supported in runtime config.
-- `stateFilePath` is resolved relative to the config file location.
-- Room `bookingUrl` values may point at the Metzoke marketing pages; the EZgo adapter resolves the embedded engine URL internally.
+5. Edit [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json) for your dates, nights, and room list.
+6. Run one monitoring cycle:
 
-## Stage 4 Findings
+```bash
+npm run monitor:once -- --config ./monitor.config.example.json
+```
 
-- Direct HTTP is viable for room-specific EZgo pages that have an `SI` identifier.
-- The specific room-link HTTP path was live-verified from the program itself and matched manual human verification for current 1-night Passover checks.
-- Multi-night stay classification now validates every occupied night in the requested stay window, not just the boundary dates.
-- The EZgo engine accepts `sDate` and `eDate` query params and reflects them in server-rendered HTML.
-- The engine is an ASP.NET WebForms app, so deeper calendar inspection uses `__VIEWSTATE` plus `__EVENTTARGET` postbacks rather than a clean JSON API.
-- For room-specific pages, availability signals can be derived from server-rendered calendar cell titles such as `פנוי`, `מלא`, and `מינימום לילות`.
-- Repeated multi-room scans were initially flaky, so the adapter was hardened with timeout, retry, and engine-URL caching; a live multi-room probe now completes successfully.
-- General-page direct-HTTP parsing is not implemented yet and should be treated as `unknown`, not guessed.
+## Telegram Setup
 
-## Stage Status
+### Create a Bot
 
-- Stage 4 is effectively complete for the accepted primary path: room-specific EZgo direct HTTP.
-- Stage 5 has started: the codebase now has notifier delivery wiring, with Telegram as the first real channel.
-- Telegram delivery has now been validated end-to-end through the program's own runtime flow.
-- General-page support and Playwright fallback are still optional follow-on work, not blockers for initial delivery.
-- GitHub Actions hosted execution now works, but cross-run state persistence is still an open operational gap for dedupe between scheduled runs.
+1. Open Telegram and message `@BotFather`.
+2. Run `/newbot`.
+3. Follow the prompts.
+4. Copy the bot token into `.env` as `TELEGRAM_BOT_TOKEN`.
+
+### Get Your Chat ID
+
+1. Open your bot chat.
+2. Send `/start`.
+3. Send a normal message like `test`.
+4. Use Telegram `getUpdates` once to inspect the chat ID, or use any equivalent Telegram method you prefer.
+5. Put that value into `.env` as `TELEGRAM_CHAT_ID`.
+
+For a private chat, the ID is usually a plain positive integer.
+
+## Configuration
+
+The main runtime file is [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json).
+
+Important fields:
+
+- `monitor.dateRangeStart`
+- `monitor.dateRangeEnd`
+- `monitor.nightCount`
+- `monitor.guestCount`
+- `monitor.pollIntervalMinutes`
+- `monitor.alertMode`
+- `monitor.rooms`
+
+### Date Configuration
+
+Supported date formats:
+
+- fixed ISO date, for example `2026-04-13`
+- `today`
+- `tomorrow`
+- `today+N`
+- `today-N`
+
+Example:
+
+```json
+"monitor": {
+  "dateRangeStart": "tomorrow",
+  "dateRangeEnd": "2026-04-13",
+  "nightCount": 2
+}
+```
+
+That means:
+
+- each run starts checking from the next calendar day onward
+- it only considers windows whose checkout is not later than `2026-04-13`
+
+### Alert Mode
+
+Supported alert modes:
+
+- `newly_available`
+- `all_currently_available`
+
+If you want every run to send every currently matching opportunity, use:
+
+```json
+"alertMode": "all_currently_available"
+```
 
 ## Current Target Room Pages
+
+The example config currently includes these Metzoke Dragot room pages:
 
 - [reservationtp](https://www.metzoke.co.il/reservationtp)
 - [reservationtN](https://www.metzoke.co.il/reservationtN)
@@ -114,20 +143,70 @@ The target use case is:
 - [reservationt](https://www.metzoke.co.il/reservationt)
 - [reservationtNP](https://www.metzoke.co.il/reservationtNP)
 
-## Working Agreement
+You can edit the `rooms` array in [monitor.config.example.json](/Users/yoyopc/repos/availability-monitor/monitor.config.example.json) to remove or reorder them.
 
-- Build in small stages.
-- Prefer tests before or alongside implementation.
-- Keep docs updated on every meaningful run.
-- Treat `PRD.md` as the main planning context for a fresh agent.
-- Treat `HANDOFF.md` as the first file to update before ending a session.
-- Never hide uncertainty: if a signal is incomplete or unreliable, return `unknown` or `error` and document the gap.
+## Available Commands
 
-## Initial Planned Stages
+- `npm test`
+- `npm run test:watch`
+- `npm run typecheck`
+- `npm run build`
+- `npm run monitor:once -- --config ./monitor.config.example.json`
 
-1. Project scaffolding and documentation.
-2. Domain model and date-window generation logic.
-3. Availability checking adapter with a testable interface.
-4. Site integration via browser automation or direct HTTP, depending on findings.
-5. Alerting and state deduplication.
-6. Packaging, runbook, and operational hardening.
+## Running Without Your Laptop
+
+The simplest no-laptop setup is GitHub Actions.
+
+The repo already includes a workflow:
+
+- [.github/workflows/availability-monitor.yml](/Users/yoyopc/repos/availability-monitor/.github/workflows/availability-monitor.yml)
+
+### GitHub Actions Setup
+
+1. Push the repository to GitHub.
+2. In your GitHub repo, go to `Settings` -> `Secrets and variables` -> `Actions`.
+3. Add repository secrets:
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+4. Make sure the workflow file exists on the default branch.
+5. Open `Actions` and manually run the workflow once to verify setup.
+
+The committed workflow is configured to run every 10 minutes on off-boundary minutes to reduce GitHub scheduler delays.
+
+## Notes On Current Architecture
+
+- the primary working integration is direct HTTP against room-specific EZgo pages
+- multi-night stays are validated across every occupied night in the stay window
+- the current implementation is intentionally property-specific
+- the general broad booking engine path is not yet the main supported monitoring strategy
+
+## Troubleshooting
+
+### No Telegram Messages
+
+Check:
+
+- `.env` exists locally
+- `TELEGRAM_BOT_TOKEN` is valid
+- `TELEGRAM_CHAT_ID` is correct
+- you already sent a message to the bot
+- your configured date window still contains valid stay windows
+
+### GitHub Actions Manual Runs Work But Scheduled Runs Do Not
+
+Check:
+
+- the workflow file is on the default branch
+- Actions are enabled for the repo
+- the schedule block exists in `.github/workflows/availability-monitor.yml`
+- repository secrets are set
+
+GitHub scheduled workflows can be delayed, especially on crowded cron boundaries, which is why this project uses off-boundary minutes.
+
+## Additional Docs
+
+- [RUNBOOK.md](/Users/yoyopc/repos/availability-monitor/docs/RUNBOOK.md)
+- [PRD.md](/Users/yoyopc/repos/availability-monitor/PRD.md)
+- [CURRENT_STATE.md](/Users/yoyopc/repos/availability-monitor/CURRENT_STATE.md)
+- [CHANGE_LOG.md](/Users/yoyopc/repos/availability-monitor/CHANGE_LOG.md)
+- [HANDOFF.md](/Users/yoyopc/repos/availability-monitor/HANDOFF.md)
